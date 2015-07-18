@@ -70,7 +70,7 @@ func InitRedis() {
 			return redigo.Dial("tcp", config.RedisServerAndPort)
 		},
 		TestOnBorrow: func(c redigo.Conn, t time.Time) (err error) {
-			_, err := c.Do("PING")
+			_, err = c.Do("PING")
 			if err != nil {
 				panic("Error connecting to redis")
 			}
