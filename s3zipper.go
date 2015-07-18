@@ -17,8 +17,6 @@ import (
 	"github.com/AdRoll/goamz/aws"
 	"github.com/AdRoll/goamz/s3"
 	redigo "github.com/garyburd/redigo/redis"
-	"github.com/getsentry/raven-go"
-	"github.com/teamwork/TeamworkDesk/app/filters"
 )
 
 type Configuration struct {
@@ -71,13 +69,12 @@ func InitRedis() {
 		Dial: func() (redigo.Conn, error) {
 			return redigo.Dial("tcp", config.RedisServerAndPort)
 		},
-		TestOnBorrow: func(c redigo.Conn, t time.Time) error {
+		TestOnBorrow: func(c redigo.Conn, t time.Time) (err error) {
 			_, err := c.Do("PING")
 			if err != nil {
-				filters.Sentry.CaptureError(err, map[string]string{}, []raven.Interface{raven.NewStacktrace(0, -1, []string{})}...)
+				panic("Error connecting to redis")
 			}
-			panic("Error connecting to redis")
-			return err
+			return
 		},
 	}
 }
