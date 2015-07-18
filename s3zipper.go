@@ -46,6 +46,7 @@ func main() {
 	initAwsBucket()
 	InitRedis()
 
+	fmt.Println("Running on port", config.Port)
 	http.HandleFunc("/", handler)
 	http.ListenAndServe(":"+strconv.Itoa(config.Port), nil)
 }
