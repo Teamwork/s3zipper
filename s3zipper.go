@@ -81,7 +81,7 @@ func InitRedis() {
 }
 
 // Remove all other unrecognised characters apart from
-var illegalName = regexp.MustCompile(`[^[:alnum:]-.]`)
+var safeFileName = regexp.MustCompile(`[#<>:"/\|?*\\]`)
 
 type TeamworkFile struct {
 	ProjectId     int64
@@ -139,7 +139,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	// Get "downloadas" URL params
 	downloadas, ok := r.URL.Query()["downloadas"]
 	if !ok && len(downloadas) > 0 {
-		downloadas[0] = illegalName.ReplaceAllString(downloadas[0], "")
+		downloadas[0] = safeFileName.ReplaceAllString(downloadas[0], "")
 		if downloadas[0] == "" {
 			downloadas[0] = "download.zip"
 		}
@@ -162,13 +162,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	for _, twFile := range twFiles {
 
 		// Build Safe Project Name
-		twFile.ProjectName = illegalName.ReplaceAllString(twFile.ProjectName, "")
+		twFile.ProjectName = safeFileName.ReplaceAllString(twFile.ProjectName, "")
 		if twFile.ProjectName == "" { // Unlikely but just in case
 			twFile.ProjectName = "Project"
 		}
 
 		// Build safe file file name
-		safeFileName := illegalName.ReplaceAllString(twFile.FileName, "")
+		safeFileName := safeFileName.ReplaceAllString(twFile.FileName, "")
 		if safeFileName == "" { // Unlikely but just in case
 			safeFileName = "file"
 		}
