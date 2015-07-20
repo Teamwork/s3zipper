@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"net/http"
@@ -88,6 +89,7 @@ type TeamworkFile struct {
 	S3Path        string
 	FileName      string
 	FileVersionId int64
+	Folder        string
 }
 
 func getFilesFromRedis(ref string) (twFiles []*TeamworkFile, err error) {
@@ -145,35 +147,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		downloadas = append(downloadas, "download.zip")
 	}
 
-	/*
-		if false { // Testing - Save this value to redis
-			redis := redisPool.Get()
-			defer redis.Close()
-			twTestFiles := []*TeamworkFile{
-				&TeamworkFile{
-					ProjectId:     1,
-					ProjectName:   "My Profile £$%^& Stuff",
-					S3Path:        "149859/p151412.1814665.1437173684254_image4957.png",
-					FileName:      "image4957.png",
-					FileVersionId: 3363,
-				},
-				&TeamworkFile{
-					ProjectId:     1,
-					ProjectName:   "My Profile £$%^& Stuff",
-					S3Path:        "135411/p168846.tf_2CDA7A0A-EC90-F87A-1EC07EC72A1AD808.A1_version2.png",
-					FileName:      "A1_version2.png",
-					FileVersionId: 3363,
-				},
-			}
-
-			b, err := json.Marshal(twTestFiles)
-			if err != nil {
-				panic("Couldn't create json")
-			}
-			_, err = redis.Do("SET", "zip:"+ref, b)
-		}
-	*/
-
 	twFiles, err := getFilesFromRedis(ref)
 	if err != nil {
 		http.Error(w, "Reference not found. Security violation logged", 500)
@@ -217,7 +190,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Build a good path for the file within the zip
-		zipPath := strconv.FormatInt(twFile.ProjectId, 10) + "." + twFile.ProjectName + "/" + strconv.FormatInt(twFile.FileVersionId, 10) + "." + safeFileName
+		zipPath := strconv.FormatInt(twFile.ProjectId, 10) + "." + twFile.ProjectName + "/"
+		if twFile.Folder != "" {
+			zipPath += twFile.Folder
+			if strings.HasSuffix(zipPath, "/") {
+				zipPath += "/"
+			}
+		}
+		zipPath += strconv.FormatInt(twFile.FileVersionId, 10) + "." + safeFileName
 		fmt.Printf("Adding to zip '%s'\n", zipPath)
 
 		// Append to zip
