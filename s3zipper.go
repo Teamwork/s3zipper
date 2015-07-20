@@ -193,7 +193,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		zipPath := strconv.FormatInt(twFile.ProjectId, 10) + "." + twFile.ProjectName + "/"
 		if twFile.Folder != "" {
 			zipPath += twFile.Folder
-			if strings.HasSuffix(zipPath, "/") {
+			if !strings.HasSuffix(zipPath, "/") {
 				zipPath += "/"
 			}
 		}
