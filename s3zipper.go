@@ -122,40 +122,6 @@ func getFilesFromRedis(ref string) (twFiles []*TeamworkFile, err error) {
 	return
 }
 
-func doTest(w http.ResponseWriter) {
-	if true { // Testing - Save this value to redis
-		ref := "test"
-		redis := redisPool.Get()
-		defer redis.Close()
-		twTestFiles := []*TeamworkFile{
-			&TeamworkFile{
-				ProjectId:     1,
-				ProjectName:   "Project One",
-				S3Path:        "149859/p151412.1814665.1437173684254_image4957.png",
-				FileName:      "file1.png",
-				FileVersionId: 3363,
-			},
-			&TeamworkFile{
-				ProjectId:     1,
-				ProjectName:   "Project One",
-				S3Path:        "135411/p168846.tf_2CDA7A0A-EC90-F87A-1EC07EC72A1AD808.A1_version2.png",
-				FileName:      "file2.png",
-				FileVersionId: 3363,
-			},
-		}
-
-		b, err := json.Marshal(twTestFiles)
-		if err != nil {
-			panic("Couldn't create json")
-		}
-		_, err = redis.Do("SET", "zip:"+ref, b)
-	}
-
-	//korean := "행복"
-	//Fmt.Println("korean", korean)
-	//w.Write([]byte(korean))
-}
-
 func handler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
@@ -166,11 +132,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ref := refs[0]
-
-	// Korean Test
-	if 1 == 0 && ref == "test" {
-		doTest(w)
-	}
 
 	// Get "downloadas" URL params
 	downloadas, ok := r.URL.Query()["downloadas"]
@@ -207,9 +168,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		safeFileName := safeFileName.ReplaceAllString(twFile.FileName, "")
 		if safeFileName == "" { // Unlikely but just in case
 			safeFileName = "file"
-		}
-		if ref == "test" {
-			safeFileName = "행복.txt"
 		}
 
 		fmt.Printf("Processing '%s'\n", twFile.S3Path)
