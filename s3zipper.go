@@ -107,7 +107,7 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 	// Get the value from Redis
 	result, err := redis.Do("GET", "zip:"+ref)
 	if err != nil || result == nil {
-		err = errors.New("Reference not found. Security violation logged")
+		err = errors.New("Reference not found")
 		return
 	}
 
