@@ -81,18 +81,26 @@ func InitRedis() {
 }
 
 // Remove all other unrecognised characters apart from
-var safeFileName = regexp.MustCompile(`[#<>:"/\|?*\\]`)
+var makeSafeFileName = regexp.MustCompile(`[#<>:"/\|?*\\]`)
 
-type TeamworkFile struct {
-	ProjectId     int64
-	ProjectName   string
-	S3Path        string
-	FileName      string
-	FileVersionId int64
-	Folder        string
+type RedisFile struct {
+	FileName string
+	Folder   string
+	S3Path   string
+	// Optional - we use are Teamwork.com but feel free to rmove
+	FileId      int64
+	ProjectId   int64
+	ProjectName string
 }
 
-func getFilesFromRedis(ref string) (twFiles []*TeamworkFile, err error) {
+func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
+
+	// Testing - enable to test. Remove later.
+	if 1 == 0 && ref == "test" {
+		files = append(files, &RedisFile{FileName: "test.zip", Folder: "", S3Path: "test/test.zip"}) // Edit and dplicate line to test
+		return
+	}
+
 	redis := redisPool.Get()
 	defer redis.Close()
 
@@ -109,14 +117,14 @@ func getFilesFromRedis(ref string) (twFiles []*TeamworkFile, err error) {
 	if resultByte, ok = result.([]byte); !ok {
 		fmt.Println("Error reading from redis")
 	}
-	err = json.Unmarshal(resultByte, &twFiles)
+	err = json.Unmarshal(resultByte, &files)
 	if err != nil {
 		// err = Errors.new("Reference not found. Security violation logged")
-		panic("Error decoding twFiles redis data")
+		panic("Error decoding files redis data")
 	}
-	fmt.Println("Got twFiles", twFiles)
-	for i, twFile := range twFiles {
-		fmt.Println("twFiles", i, twFile.FileName)
+	fmt.Println("Got files", files)
+	for i, file := range files {
+		fmt.Println("files", i, file.FileName)
 	}
 
 	return
@@ -128,7 +136,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	// Get "ref" URL params
 	refs, ok := r.URL.Query()["ref"]
 	if !ok || len(refs) < 1 {
-		http.Error(w, "ref not passed", 500)
+		http.Error(w, "S3 File Zipper. Pass ?ref= to use.", 500)
 		return
 	}
 	ref := refs[0]
@@ -136,7 +144,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	// Get "downloadas" URL params
 	downloadas, ok := r.URL.Query()["downloadas"]
 	if !ok && len(downloadas) > 0 {
-		downloadas[0] = safeFileName.ReplaceAllString(downloadas[0], "")
+		downloadas[0] = makeSafeFileName.ReplaceAllString(downloadas[0], "")
 		if downloadas[0] == "" {
 			downloadas[0] = "download.zip"
 		}
@@ -144,58 +152,65 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		downloadas = append(downloadas, "download.zip")
 	}
 
-	twFiles, err := getFilesFromRedis(ref)
+	files, err := getFilesFromRedis(ref)
 	if err != nil {
-		http.Error(w, "Reference not found. Security violation logged", 500)
+		http.Error(w, "Access Denied (Link has probably timed out)", 403)
+		log.Printf("Link timed out. %s\t%s", r.Method, r.RequestURI)
 		return
 	}
 
 	// Start processing the response
-	w.Header().Add("Content-Disposition", "attachment; filename="+downloadas[0])
+	w.Header().Add("Content-Disposition", "attachment; filename=\""+downloadas[0]+"\"")
 	w.Header().Add("Content-Type", "application/zip")
 
 	// Loop over files, add them to the
 	zipWriter := zip.NewWriter(w)
-	for _, twFile := range twFiles {
-
-		// Build Safe Project Name
-		twFile.ProjectName = safeFileName.ReplaceAllString(twFile.ProjectName, "")
-		if twFile.ProjectName == "" { // Unlikely but just in case
-			twFile.ProjectName = "Project"
-		}
+	for _, file := range files {
 
 		// Build safe file file name
-		safeFileName := safeFileName.ReplaceAllString(twFile.FileName, "")
+		safeFileName := makeSafeFileName.ReplaceAllString(file.FileName, "")
 		if safeFileName == "" { // Unlikely but just in case
 			safeFileName = "file"
 		}
 
-		fmt.Printf("Processing '%s'\n", twFile.S3Path)
-
-		// Read file from S3
-		rdr, err := aws_bucket.GetReader(twFile.S3Path)
+		// Read file from S3, log any errors
+		rdr, err := aws_bucket.GetReader(file.S3Path)
 		if err != nil {
 			switch t := err.(type) {
 			case *s3.Error:
-				// skip non existing files
 				if t.StatusCode == 404 {
-					fmt.Println("S3 file not found!", twFile.S3Path)
-					continue
+					log.Printf("File not found. %s", file.S3Path)
 				}
+			default:
+				log.Printf("Error downloading \"%s\" - %s", file.S3Path, err.Error())
 			}
-			panic(err)
+			continue
 		}
 
 		// Build a good path for the file within the zip
-		zipPath := strconv.FormatInt(twFile.ProjectId, 10) + "." + twFile.ProjectName + "/"
-		if twFile.Folder != "" {
-			zipPath += twFile.Folder
+		zipPath := ""
+		// Prefix project Id and name, if any (remove if you don't need)
+		if file.ProjectId > 0 {
+			zipPath += strconv.FormatInt(file.ProjectId, 10) + "."
+			// Build Safe Project Name
+			file.ProjectName = makeSafeFileName.ReplaceAllString(file.ProjectName, "")
+			if file.ProjectName == "" { // Unlikely but just in case
+				file.ProjectName = "Project"
+			}
+			zipPath += file.ProjectName + "/"
+		}
+		// Prefix folder name, if any
+		if file.Folder != "" {
+			zipPath += file.Folder
 			if !strings.HasSuffix(zipPath, "/") {
 				zipPath += "/"
 			}
 		}
-		zipPath += strconv.FormatInt(twFile.FileVersionId, 10) + "." + safeFileName
-		fmt.Printf("Adding to zip '%s'\n", zipPath)
+		// Prefix file Id, if any
+		if file.FileId > 0 {
+			zipPath += strconv.FormatInt(file.FileId, 10) + "."
+		}
+		zipPath += safeFileName
 
 		// We have to set a special flag so zip files recognize utf file names
 		// See http://stackoverflow.com/questions/30026083/creating-a-zip-archive-with-unicode-filenames-using-gos-archive-zip
@@ -208,10 +223,5 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	zipWriter.Close()
 
-	log.Printf(
-		"%s\t%s\t%s",
-		r.Method,
-		r.RequestURI,
-		time.Since(start),
-	)
+	log.Printf("%s\t%s\t%s", r.Method, r.RequestURI, time.Since(start))
 }
