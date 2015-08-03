@@ -115,18 +115,13 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 	var resultByte []byte
 	var ok bool
 	if resultByte, ok = result.([]byte); !ok {
-		fmt.Println("Error reading from redis")
+		err = errors.New("Error reading from redis")
+		return
 	}
 	err = json.Unmarshal(resultByte, &files)
 	if err != nil {
-		// err = Errors.new("Reference not found. Security violation logged")
-		panic("Error decoding files redis data")
+		err = errors.New("Error decoding files redis data")
 	}
-	fmt.Println("Got files", files)
-	for i, file := range files {
-		fmt.Println("files", i, file.FileName)
-	}
-
 	return
 }
 
