@@ -51,10 +51,7 @@ func main() {
 }
 
 func initAwsBucket() {
-	now := time.Now()
-	var dur time.Duration = time.Hour * 1
-	expiration := now.Add(dur)
-
+	expiration := time.Now().Add(time.Hour * 1)
 	auth, err := aws.GetAuth(config.AccessKey, config.SecretKey, "", expiration) //"" = token which isn't needed
 	if err != nil {
 		panic(err)
