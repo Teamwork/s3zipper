@@ -21,12 +21,8 @@ import (
 )
 
 type Configuration struct {
-	AccessKey          string
-	SecretKey          string
-	Bucket             string
-	Region             string
-	RedisServerAndPort string
-	Port               int
+	AccessKey, SecretKey, Bucket, Region, RedisServerAndPort string
+	Port int
 }
 
 var config = Configuration{}
@@ -81,12 +77,9 @@ func InitRedis() {
 var makeSafeFileName = regexp.MustCompile(`[#<>:"/\|?*\\]`)
 
 type RedisFile struct {
-	FileName string
-	Folder   string
-	S3Path   string
+	FileName, Folder, S3Path string
 	// Optional - we use are Teamwork.com but feel free to rmove
-	FileId      int64
-	ProjectId   int64
+	FileId, ProjectId int64
 	ProjectName string
 }
 
