@@ -198,10 +198,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 				zipPath += "/"
 			}
 		}
-		// Prefix file Id, if any
-		if file.FileId > 0 {
-			zipPath += strconv.FormatInt(file.FileId, 10) + "."
-		}
 		zipPath += safeFileName
 
 		// We have to set a special flag so zip files recognize utf file names
