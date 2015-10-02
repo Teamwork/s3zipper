@@ -104,7 +104,7 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 	// Get the value from Redis
 	result, err := redis.Do("GET", "zip:"+ref)
 	if err != nil || result == nil {
-		err = errors.New("Access Denied (Link has probably timed out)")
+		err = errors.New("Access Denied (sorry your link has timed out)")
 		return
 	}
 
