@@ -104,20 +104,22 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 	// Get the value from Redis
 	result, err := redis.Do("GET", "zip:"+ref)
 	if err != nil || result == nil {
-		err = errors.New("Reference not found")
+		err = errors.New("Access Denied (Link has probably timed out)")
 		return
 	}
 
-	// Decode the JSON
+	// Convert to bytes
 	var resultByte []byte
 	var ok bool
 	if resultByte, ok = result.([]byte); !ok {
-		err = errors.New("Error reading from redis")
+		err = errors.New("Error converting data stream to bytes")
 		return
 	}
+
+	// Decode JSON
 	err = json.Unmarshal(resultByte, &files)
 	if err != nil {
-		err = errors.New("Error decoding files redis data")
+		err = errors.New("Error decoding json: " + string(resultByte))
 	}
 	return
 }
@@ -146,8 +148,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	files, err := getFilesFromRedis(ref)
 	if err != nil {
-		http.Error(w, "Access Denied (Link has probably timed out)", 403)
-		log.Printf("Link timed out. %s\t%s", r.Method, r.RequestURI)
+		http.Error(w, err.Error(), 403)
+		log.Printf("%s\t%s\t%s", r.Method, r.RequestURI, err.Error())
 		return
 	}
 
