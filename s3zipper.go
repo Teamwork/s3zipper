@@ -34,7 +34,6 @@ var aws_bucket *s3.Bucket
 var redisPool *redigo.Pool
 
 func main() {
-
 	configFile, _ := os.Open("conf.json")
 	decoder := json.NewDecoder(configFile)
 	err := decoder.Decode(&config)
@@ -85,8 +84,8 @@ type RedisFile struct {
 	Folder   string
 	S3Path   string
 	// Optional - we use are Teamwork.com but feel free to rmove
-	FileId      int64
-	ProjectId   int64
+	FileId      int64 `json:",string"`
+	ProjectId   int64 `json:",string"`
 	ProjectName string
 }
 
