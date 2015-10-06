@@ -33,7 +33,24 @@ var config = Configuration{}
 var aws_bucket *s3.Bucket
 var redisPool *redigo.Pool
 
+type RedisFile struct {
+	FileName string
+	Folder   string
+	S3Path   string
+	// Optional - we use are Teamwork.com but feel free to rmove
+	FileId       int64 `json:",string"`
+	ProjectId    int64 `json:",string"`
+	ProjectName  string
+	Modified     string
+	ModifiedTime time.Time
+}
+
 func main() {
+	if 1 == 0 {
+		test()
+		return
+	}
+
 	configFile, _ := os.Open("conf.json")
 	decoder := json.NewDecoder(configFile)
 	err := decoder.Decode(&config)
@@ -47,6 +64,33 @@ func main() {
 	fmt.Println("Running on port", config.Port)
 	http.HandleFunc("/", handler)
 	http.ListenAndServe(":"+strconv.Itoa(config.Port), nil)
+}
+
+func test() {
+	var err error
+	var files []*RedisFile
+	jsonData := "[{\"S3Path\":\"1\\/p23216.tf_A89A5199-F04D-A2DE-5824E635AC398956.Avis_Rent_A_Car_Print_Reservation.pdf\",\"FileVersionId\":\"4164\",\"FileName\":\"Avis Rent A Car_ Print Reservation.pdf\",\"ProjectName\":\"Superman\",\"ProjectId\":\"23216\",\"Folder\":\"\",\"FileId\":\"4169\"},{\"modified\":\"2015-07-18T02:05:04Z\",\"S3Path\":\"1\\/p23216.tf_351310E0-DF49-701F-60601109C2792187.a1.jpg\",\"FileVersionId\":\"4165\",\"FileName\":\"a1.jpg\",\"ProjectName\":\"Superman\",\"ProjectId\":\"23216\",\"Folder\":\"Level 1\\/Level 2 x\\/Level 3\",\"FileId\":\"4170\"}]"
+
+	resultByte := []byte(jsonData)
+
+	err = json.Unmarshal(resultByte, &files)
+	if err != nil {
+		err = errors.New("Error decoding json: " + jsonData)
+	}
+
+	parseFileDates(files)
+}
+
+func parseFileDates(files []*RedisFile) {
+	layout := "2006-01-02T15:04:05Z"
+	for _, file := range files {
+		t, err := time.Parse(layout, file.Modified)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		file.ModifiedTime = t
+	}
 }
 
 func initAwsBucket() {
@@ -79,16 +123,6 @@ func InitRedis() {
 // Remove all other unrecognised characters apart from
 var makeSafeFileName = regexp.MustCompile(`[#<>:"/\|?*\\]`)
 
-type RedisFile struct {
-	FileName string
-	Folder   string
-	S3Path   string
-	// Optional - we use are Teamwork.com but feel free to rmove
-	FileId      int64 `json:",string"`
-	ProjectId   int64 `json:",string"`
-	ProjectName string
-}
-
 func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 
 	// Testing - enable to test. Remove later.
@@ -120,6 +154,10 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 	if err != nil {
 		err = errors.New("Error decoding json: " + string(resultByte))
 	}
+
+	// Convert mofified date strings to time objects
+	parseFileDates(files)
+
 	return
 }
 
@@ -203,7 +241,16 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 		// We have to set a special flag so zip files recognize utf file names
 		// See http://stackoverflow.com/questions/30026083/creating-a-zip-archive-with-unicode-filenames-using-gos-archive-zip
-		h := &zip.FileHeader{Name: zipPath, Method: zip.Deflate, Flags: 0x800}
+		h := &zip.FileHeader{
+			Name:   zipPath,
+			Method: zip.Deflate,
+			Flags:  0x800,
+		}
+
+		if file.Modified != "" {
+			h.SetModTime(file.ModifiedTime)
+		}
+
 		f, _ := zipWriter.CreateHeader(h)
 
 		io.Copy(f, rdr)
