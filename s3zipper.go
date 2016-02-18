@@ -198,6 +198,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	zipWriter := zip.NewWriter(w)
 	for _, file := range files {
 
+		if file.S3Path == "" {
+			log.Printf("Missing path for file: %v", file)
+			continue
+		}
+
 		// Build safe file file name
 		safeFileName := makeSafeFileName.ReplaceAllString(file.FileName, "")
 		if safeFileName == "" { // Unlikely but just in case
