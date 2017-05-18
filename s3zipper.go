@@ -163,6 +163,12 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	
+	health, ok := r.URL.Query()["health"]
+	if len(health) > 0 {
+		fmt.Fprintf(w, "OK")
+		return
+	}
 
 	// Get "ref" URL params
 	refs, ok := r.URL.Query()["ref"]
