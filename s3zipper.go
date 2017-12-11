@@ -111,6 +111,9 @@ func InitRedis() {
 			return redigo.Dial("tcp", config.RedisServerAndPort)
 		},
 		TestOnBorrow: func(c redigo.Conn, t time.Time) (err error) {
+			if time.Since(t) < time.Minute {
+				return nil
+			}
 			_, err = c.Do("PING")
 			if err != nil {
 				panic("Error connecting to redis")
@@ -163,7 +166,7 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	
+
 	health, ok := r.URL.Query()["health"]
 	if len(health) > 0 {
 		fmt.Fprintf(w, "OK")
