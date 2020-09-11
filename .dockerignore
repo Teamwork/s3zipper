@@ -3,3 +3,4 @@ sample_conf.json
 .git
 Dockerfile
 .gitignore
+conf.json
