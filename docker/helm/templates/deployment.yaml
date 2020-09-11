@@ -30,7 +30,8 @@ spec:
       containers:
         - name: {{ .Chart.Name }}
           command: 
-            - sleep 3600
+            - /bin/sh
+            - "-c 'sleep 10000'"
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
