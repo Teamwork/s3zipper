@@ -30,7 +30,7 @@ spec:
       containers:
         - name: {{ .Chart.Name }}
           command: 
-            - "/bin/shsh" 
+            - "/bin/sh" 
             - "-c" 
             - "'ls -al; cat conf.json; ./s3zipper'"
           securityContext:
