@@ -30,7 +30,9 @@ spec:
       containers:
         - name: {{ .Chart.Name }}
           command: 
-            - "sh -c 'ls -al; cat conf.json; ./s3zipper'"
+            - "/bin/shsh" 
+            - "-c" 
+            - "'ls -al; cat conf.json; ./s3zipper'"
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
