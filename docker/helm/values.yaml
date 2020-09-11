@@ -50,6 +50,7 @@ ingress:
     - host: tw-zip.teamwork.com
       paths:
         - /
+        
   tls: []
   #  - secretName: chart-example-tls
   #    hosts:
