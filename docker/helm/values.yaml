@@ -48,7 +48,8 @@ ingress:
     # kubernetes.io/tls-acme: "true"
   hosts:
     - host: tw-zip.teamwork.com
-      paths: []
+      paths:
+        - /
   tls: []
   #  - secretName: chart-example-tls
   #    hosts:
