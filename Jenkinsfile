@@ -17,8 +17,7 @@ pipeline {
           changeRequest()
         }
         anyOf {
-          branch 'feature/k8s-deployment'
-          branch 'master'
+          branch 'foobarto/k8s-deployment'
         }
       }
 
