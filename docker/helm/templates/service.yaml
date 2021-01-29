@@ -2,10 +2,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "s3zipper.fullname" . }}
-  {{- with .Values.service.annotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+    external-dns.alpha.kubernetes.io/hostname: {{ .Values.service.hostname }}
   labels:
     {{- include "s3zipper.labels" . | nindent 4 }}
 spec:
