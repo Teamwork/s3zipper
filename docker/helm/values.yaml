@@ -40,9 +40,10 @@ securityContext: {}
 service:
   type: LoadBalancer
   port: 80
-  annotations:
-    external-dns.alpha.kubernetes.io/hostname: tw-zip.us.teamworkops.com
-    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+  hostname: tw-zip.us.teamworkops.com
+  # annotations:
+  #   external-dns.alpha.kubernetes.io/hostname: tw-zip.us.teamworkops.com
+  #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
 
 ingress:
   enabled: true
