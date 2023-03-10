@@ -39,6 +39,9 @@ securityContext: {}
 
 service:
   type: LoadBalancer
+  loadBalancerSourceRanges:
+    - "63.32.61.82/32"
+    - "18.203.253.171/32"
   port: 80
   hostname: tw-zip.us.teamworkops.com
   # annotations:
