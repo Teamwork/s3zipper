@@ -20,6 +20,7 @@ spec:
   {{- if .Values.ingress.ingressClassName -}}
     ingressClassName: {{ .Values.ingress.ingressClassName }}
   {{- end }}
+  {{- if .Values.ingress.tls }}
   tls:
     {{- range .Values.ingress.tls }}
     - hosts:
@@ -29,7 +30,7 @@ spec:
       secretName: {{ .secretName }}
     {{- end }}
   {{- end }}
-    rules:
+  rules:
     {{- range .Values.ingress.hosts }}
     - host: {{ .host | quote }}
       http:
