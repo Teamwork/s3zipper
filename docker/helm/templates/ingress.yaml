@@ -1,10 +1,11 @@
 {{- if .Values.ingress.enabled -}}
+{{- $kubeVersion := .Capabilities.KubeVersion.GitVersion -}}
 {{- $fullName := include "s3zipper.fullname" . -}}
 {{- $svcPort := .Values.service.port -}}
-{{- if semverCompare ">=1.14-0" .Capabilities.KubeVersion.GitVersion -}}
-apiVersion: networking.k8s.io/v1beta1
+{{- if semverCompare ">=1.22-0" $kubeVersion -}}
+apiVersion: networking.k8s.io/v1
 {{- else -}}
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1beta1
 {{- end }}
 kind: Ingress
 metadata:
@@ -16,6 +17,9 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
+  {{- if .Values.ingress.ingressClassName }}
+  ingressClassName: {{ .Values.ingress.ingressClassName }}
+  {{ end -}}
   {{- if .Values.ingress.tls }}
   tls:
     {{- range .Values.ingress.tls }}
@@ -33,9 +37,18 @@ spec:
         paths:
           {{- range .paths }}
           - path: {{ . }}
+            {{- if semverCompare ">=1.22-0" $kubeVersion }}
+            {{ "pathType: Prefix" | nindent 12 }}
+            backend:
+              service:
+                name: {{ $fullName }}
+                port:
+                  number: {{ $svcPort }}
+            {{- else }}
             backend:
               serviceName: {{ $fullName }}
               servicePort: {{ $svcPort }}
+            {{- end }}
           {{- end }}
     {{- end }}
   {{- end }}
