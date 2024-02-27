@@ -42,6 +42,10 @@ service:
   loadBalancerSourceRanges:
     - "63.32.61.82/32"
     - "18.203.253.171/32"
+    - "34.252.111.50/32"
+    - "52.208.8.238/32"
+    - "63.35.208.53/32"
+    - "54.76.130.214/32"
   port: 80
   hostname: tw-zip.us.teamworkops.com
   # annotations:
