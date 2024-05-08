@@ -5,6 +5,9 @@ metadata:
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
     external-dns.alpha.kubernetes.io/hostname: {{ .Values.service.hostname }}
+    {{- if .Values.service.internal }}
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+    {{- end }}
   labels:
     {{- include "s3zipper.labels" . | nindent 4 }}
 spec:
