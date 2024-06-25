@@ -1,0 +1,14 @@
+{{- range .Values.configMaps }}
+{{- $scopeDict := dict "Release" $.Release "Chart" $.Chart "name" .name -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "eks.fullname" $scopeDict }}
+  labels:
+    {{- include "eks.labels" $scopeDict | nindent 4 }}
+data:
+  {{- range $index, $value := .content }}
+  {{ $index }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}

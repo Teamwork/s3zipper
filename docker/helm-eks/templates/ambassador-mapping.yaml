@@ -1,0 +1,33 @@
+{{- range .Values.ambassadorMappings }}
+{{- $scopeDict := dict "Release" $.Release "Chart" $.Chart "name" .service -}}
+---
+apiVersion: getambassador.io/v2
+kind:  Mapping
+metadata:
+  name: {{ include "eks.fullname" $scopeDict }}
+  labels:
+    {{- include "eks.labels" $scopeDict | nindent 4 }}
+spec:
+  service: {{ include "eks.fullname" $scopeDict }}
+  {{- if .prefix }}
+  prefix: {{ .prefix }}
+  {{- end }}
+  {{- if .prefix_regex }}
+  prefix_regex: {{ .prefix_regex }}
+  {{- end }}
+  {{- if .rewrite }}
+  rewrite: {{ .rewrite }}
+  {{- end }}
+  {{- if .regex_rewrite }}
+  regex_rewrite:
+    pattern: {{ .regex_rewrite.pattern | squote }}
+    substitution: {{ .regex_rewrite.substitution }}
+  {{- end }}
+  {{- if .timeout_ms }}
+  timeout_ms: {{ .timeout_ms }}
+  {{- end }}
+  {{- if .routingCookie }}
+  regex_headers:
+    Cookie: "{{ .routingCookie }}"
+  {{- end }}
+{{ end }}

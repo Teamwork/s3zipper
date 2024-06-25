@@ -1,0 +1,42 @@
+{{- range .Values.services }}
+{{- $scopeDict := dict "Release" $.Release "Chart" $.Chart "name" .name -}}
+{{- $deployScopeDict := dict "Release" $.Release "Chart" $.Chart "name" .targetDeployment -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  {{- if .fixedName }}
+  name: {{ .name }}
+  {{- else }}
+  name: {{ include "eks.fullname" $scopeDict }}
+  {{- end }}
+  labels:
+    {{- include "eks.labels" $scopeDict | nindent 4 }}
+    {{- include "eks.selectorLabels" $scopeDict | nindent 4 }}
+  {{- if or (eq .type "LoadBalancer") .annotations }}
+  annotations:
+    {{- if .loadBalancer.internal }}
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true" # For backwards compatibility
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+    {{- else }}
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    {{- end }}
+    {{- if .loadBalancer.externalDNS }}
+    external-dns.alpha.kubernetes.io/hostname: {{ .loadBalancer.externalDNS }}
+    {{- end }}
+    {{- with .annotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  type: {{ .type }}
+  ports:
+    {{- range .ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ default .name .targetPort }}
+      protocol: {{ .protocol }}
+    {{- end }}
+  selector:
+    {{- include "eks.selectorLabels" $deployScopeDict | nindent 4 }}
+{{ end }}

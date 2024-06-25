@@ -42,10 +42,11 @@ push:
 	  .
 
 #
-# Helm chart updates 
+# Helm chart updates
 #
 chart-update:
 	yq w -i docker/helm/Chart.yaml appVersion $(VERSION)
+	yq w -i docker/helm-eks/Chart.yaml appVersion $(VERSION)
 
 #
 # GitOps deployment will be triggered by a committed change to helm chart
@@ -78,4 +79,4 @@ install-buildx:
 	mkdir -p ~/.docker/cli-plugins
 	curl -L https://github.com/docker/buildx/releases/download/v0.3.1/buildx-v0.3.1.linux-amd64 -o ~/.docker/cli-plugins/docker-buildx
 	chmod 755 ~/.docker/cli-plugins/docker-buildx
-	docker buildx create --name container --use 
+	docker buildx create --name container --use

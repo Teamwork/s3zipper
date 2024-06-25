@@ -1,0 +1,37 @@
+{{- range .Values.deployments }}
+{{- if .scaling.autoscaler }}
+{{- $scopeDict := dict "Release" $.Release "Chart" $.Chart "name" .name -}}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "eks.fullname" $scopeDict }}
+  labels:
+    {{- include "eks.labels" $scopeDict | nindent 4 }}
+    {{- include "eks.selectorLabels" $scopeDict | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "eks.fullname" $scopeDict }}
+  minReplicas: {{ .scaling.replicas }}
+  maxReplicas: {{ .scaling.maxReplicas }}
+  metrics:
+    {{- if .scaling.targetCPUPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .scaling.targetCPUPercentage }}
+    {{- end }}
+    {{- if .scaling.targetMemoryPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .scaling.targetMemoryPercentage }}
+    {{- end }}
+{{- end }}
+{{- end }}

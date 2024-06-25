@@ -1,0 +1,119 @@
+{{- range .Values.cronJobs }}
+{{- $scopeDict := dict "Release" $.Release "Chart" $.Chart "name" .name -}}
+---
+{{- $kubeVersion := $.Capabilities.KubeVersion.Version -}}
+{{- if semverCompare ">=1.27-0" $kubeVersion }}
+apiVersion: batch/v1
+{{- else -}}
+apiVersion: batch/v1beta1
+{{- end }}
+kind: CronJob
+metadata:
+  name: {{ include "eks.fullname" $scopeDict }}
+  labels:
+    {{- include "eks.labels" $scopeDict | nindent 4 }}
+    {{- include "eks.selectorLabels" $scopeDict | nindent 4 }}
+spec:
+  failedJobsHistoryLimit: {{ .historyLimit.failed }}
+  successfulJobsHistoryLimit: {{ .historyLimit.successful }}
+  schedule: {{ .schedule | quote }}
+  {{- if .startingDeadlineSeconds }}
+  startingDeadlineSeconds: {{ .startingDeadlineSeconds }}
+  {{- end }}
+  concurrencyPolicy: {{ .policies.concurrency }}
+  jobTemplate:
+    metadata:
+      {{- with .annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "eks.labels" $scopeDict | nindent 8 }}
+        {{- include "eks.selectorLabels" $scopeDict | nindent 8 }}
+        {{- with .labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- if .activeDeadlineSeconds }}
+      activeDeadlineSeconds: {{ .activeDeadlineSeconds }}
+      {{- end }}
+      template:
+        metadata:
+          labels:
+            {{- include "eks.labels" $scopeDict | nindent 12 }}
+            {{- include "eks.selectorLabels" $scopeDict | nindent 12 }}
+            {{- with .labels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        spec:
+          restartPolicy: {{ .policies.restart }}
+          {{- if $.Values.nodePool }}
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: dedicated
+                        operator: In
+                        values:
+                          - {{ $.Values.nodePool }}
+          tolerations:
+            - effect: NoSchedule
+              key: dedicated
+              operator: Equal
+              value: {{ $.Values.nodePool }}
+          {{- end }}
+          {{- range .containers }}
+          containers:
+            - name: {{ .name }}
+              image: "{{ .image.repository }}:{{ .image.tag | default $.Chart.AppVersion }}"
+              imagePullPolicy: {{ .image.pullPolicy | default "IfNotPresent" }}
+              {{- if .command }}
+              command: {{ .command }}
+              {{- end }}
+              {{- if .args }}
+              args: {{ .args }}
+              {{- end }}
+              {{- if or .env .additionalEnv }}
+              env:
+                {{- range $index, $value := .env }}
+                - name: {{ $index }}
+                  value: {{ $value | quote }}
+                {{- end }}
+                {{- if .additionalEnv }}
+                {{- toYaml .additionalEnv | nindent 16 }}
+                {{- end }}
+              {{- end }}
+              {{- if or .configMaps .secrets }}
+              envFrom:
+                {{- range .configMaps }}
+                - configMapRef:
+                    {{- if .external }}
+                    name: {{ .name }}
+                    {{- else }}
+                    {{- $cmScopeDict := dict "Release" $.Release "Chart" $.Chart "name" .name }}
+                    name: {{ include "eks.fullname" $cmScopeDict }}
+                    {{- end }}
+                    {{- if .optional }}
+                    optional: true
+                    {{- end }}
+                {{- end }}
+                {{- range .secrets }}
+                - secretRef:
+                    {{- if .external }}
+                    name: {{ .name }}
+                    {{- else }}
+                    {{- $secScopeDict := dict "Release" $.Release "Chart" $.Chart "name" .name }}
+                    name: {{ include "eks.fullname" $secScopeDict }}
+                    {{- end }}
+                    {{- if .optional }}
+                    optional: true
+                    {{- end }}
+                {{- end }}
+              {{- end }}
+              {{- if .resources }}
+              resources:
+                {{- toYaml .resources | nindent 16 }}
+              {{- end }}
+          {{- end }}
+{{ end }}

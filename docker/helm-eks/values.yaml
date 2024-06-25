@@ -1,0 +1,222 @@
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+nodePool: "" # For affinity and tolerations
+nodeSelector: {}
+
+deployments:
+  - name: test
+    scaling:
+      replicas: 1 # Number of replicas to deploy (minimum replicas with autoscaling enabled)
+      maxReplicas: 2 # Only used with autoscaling enabled
+      autoscaler: false
+      targetCPUPercentage: 80 # Only used with autoscaling enabled
+      targetMemoryPercentage: 80 # Only used with autoscaling enabled
+
+    rsLimit: 5
+    imagePullSecrets: []
+    # - name: dockerconfig-secret-name
+
+    annotations: {}
+    labels: {}
+
+    securityContext: {}
+
+    datadog:
+      enabled: false
+
+    volumes: []
+    # - name: foo
+    #   secret:
+    #     secretName: mysecret
+    #     optional: false
+
+    # Optional config for topology spread to ensure pods are distributed across AWS availability zones
+    # and thus nodes are also spread across AZ (and subnets)
+    # topologySpreadConstraints:
+    #   maxSkew: 1
+    #   topologyKey: "topology.kubernetes.io/zone"
+    #   whenUnsatisfiable: ScheduleAnyway
+
+    containers:
+      - name: test
+        image:
+          repository: test
+          tag: "" # Leave empty unless you have to override of fix a specific version of the image
+          pullPolicy: IfNotPresent # Don't change this unless necessary
+        ports: []
+        # - name: http
+        #   containerPort: 80
+        #   protocol: TCP
+        securityContext: {}
+
+        resources: {} # Please, set some resources
+        # limits:
+        #   cpu: 100m
+        #   memory: 128Mi
+        # requests:
+        #   cpu: 100m
+        #   memory: 128Mi
+
+        volumeMounts: []
+        # - name: foo
+        #   mountPath: "/etc/foo"
+        #   readOnly: true
+
+        healthchecks:
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          # Optional startupProbe for services that might require it
+          # startupProbe:
+          #   failureThreshold: 30
+          #   httpGet:
+          #     path: /
+          #     port: http
+          #   periodSeconds: 10
+
+        env:
+          # TEST: value
+          # ENV: var
+          # TEMPLATE_ENV: "{{ $.Chart.AppVersion }}"
+
+        additionalEnv: [] # This will be passed as is to the env block, useful to pull specific configmap values, secrets, field references, etc.
+
+        configMaps:
+          # - name: test
+          #   external: true # The configmap is created outside of this chart and the name will be used as it is
+          #   optional: true
+
+        # We don't allow secrets to be created in helm charts, but the secret may use the generated name of the chart
+        secrets:
+          # - name: test
+          #   external: true
+          #   optional: true
+
+services:
+  - name: test
+    fixedName: false # Don't build a name for the service based on the release, use the name as it is
+    targetDeployment: test # Name of the deployment to expose with this service
+    type: ClusterIP
+
+    loadBalancer: {} # Mandatory configuration when type is LoadBalancer
+    # externalDNS: ""
+    # internal: true
+
+    # Don't include lb scheme or external DNS annotations here, they are inferred from the values set above.
+    annotations: {}
+
+    ports: []
+    # - name: http # Will be used as target
+    #   port: 80
+    #   targetPort: http # If not defined, will use name as target
+    #   protocol: TCP
+
+ingresses:
+  - name: test
+    type: alb # Choices are alb and nginx
+    className: nginx-internal # If type is alb, this will be overriden to alb
+    albIngress:
+      certificateArn: "arn:aws:acm:us-east-1:464746349752:certificate/9778cfd4-a0b9-46d3-834d-36c38c46527e"
+      internal: true
+      group: "" # ALB group. If set, it will look for "ingress-{group}-{internal/external}" ALB
+      healthcheck:
+        path: /health.json # Optional, will default to root
+        port: 80 # Optional, will default to service port
+      listenPorts: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    annotations: {}
+    hosts:
+      - host: chart-example.local
+        paths:
+          - path: /
+            headerRouting: false # Only used by ALB ingress, used to set header based routing in ALB instead of host based one
+            # header: test # If set, it will set this as the header value for header based routing
+            pathType: ImplementationSpecific
+            service: test
+            port: 80
+    tls: []
+    #  - secretName: chart-example-tls
+    #    hosts:
+    #      - chart-example.local
+
+configMaps:
+  - name: test
+    content:
+      ENV: var
+
+cronJobs:
+  - name: test
+
+    schedule: "* * * * *"
+    historyLimit:
+      failed: 1
+      successful: 1
+    startingDeadlineSeconds: 180
+    policies:
+      concurrency: Forbid
+      restart: Never
+
+    annotations: {}
+    labels: {}
+
+    containers:
+      - name: test
+        image:
+          repository: test
+          tag: "" # Leave empty unless you have to override of fix a specific version of the image
+          pullPolicy: IfNotPresent # Don't change this unless necessary
+
+        command: []
+
+        resources: {} # Please, set some resources
+        # limits:
+        #   cpu: 100m
+        #   memory: 128Mi
+        # requests:
+        #   cpu: 100m
+        #   memory: 128Mi
+
+        env:
+          # TEST: value
+          # ENV: var
+          # TEMPLATE_ENV: "{{ $.Chart.AppVersion }}"
+
+        additionalEnv: [] # This will be passed as is to the env block, useful to pull specific configmap values, secrets, field references, etc.
+
+        configMaps:
+          # - name: test
+          #   external: true # The configmap is created outside of this chart and the name will be used as it is
+          #   optional: true
+
+        # We don't allow secrets to be created in helm charts, but the secret may use the generated name of the chart
+        secrets:
+          # - name: test
+          #   external: true
+          #   optional: true
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+ambassadorMappings: []
+  # - service: test # Service to map ambassador requests
+  #   prefix: /twa # Path prefix
+  #   prefix_regex: false
+  #   regex_rewrite:
+  #     pattern: ""
+  #     substitution: \1
+  #   rewrite: / # Path rewriting
+  #   timeout_ms: 10000
+  #   routingCookie: # Cookie for routing
