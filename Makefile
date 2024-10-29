@@ -6,6 +6,10 @@ IMAGE_REPO  = teamwork/$(NAME)
 CACHE_TAG   = $(IMAGE_REPO):cache-$(BRANCH)
 TAG         = $(IMAGE_REPO):$(VERSION)
 
+ECR_IMAGE_REPO  = $(ECR_ACCOUNT).dkr.ecr.$(ECR_REGION).amazonaws.com/teamwork/$(NAME)
+ECR_CACHE_TAG   = $(ECR_IMAGE_REPO):cache-$(BRANCH)
+ECR_TAG         = $(ECR_IMAGE_REPO):$(VERSION)
+
 .PHONY: default install build push chart-update git-prep git-push install-docker install-buildx install-yq
 
 #
@@ -26,6 +30,7 @@ build:
 	  --build-arg BUILD_VCS_REF=$(shell git rev-parse --short HEAD) \
 	  --build-arg BUILD_VERSION=$(VERSION) \
 	  -t $(TAG) \
+	  -t $(ECR_TAG) \
 	  --load \
 	  .
 
@@ -37,6 +42,7 @@ push:
 	  --cache-from=type=registry,ref=$(CACHE_TAG) \
 	  --cache-to=type=registry,ref=$(CACHE_TAG),mode=max \
 	  -t $(TAG) \
+	  -t $(ECR_TAG) \
 	  --push \
 	  --progress=plain \
 	  .
@@ -45,8 +51,8 @@ push:
 # Helm chart updates
 #
 chart-update:
-	yq w -i docker/helm/Chart.yaml appVersion $(VERSION)
-	yq w -i docker/helm-eks/Chart.yaml appVersion $(VERSION)
+	yq eval -i '.appVersion = "$(VERSION)"' docker/helm/Chart.yaml
+	yq eval -i '.appVersion = "$(VERSION)"' docker/helm-eks/Chart.yaml
 
 #
 # GitOps deployment will be triggered by a committed change to helm chart
