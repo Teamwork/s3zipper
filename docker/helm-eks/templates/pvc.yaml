@@ -1,0 +1,25 @@
+{{- range .Values.persistentVolumeClaims }}
+{{- $scopeDict := dict "Release" $.Release "Chart" $.Chart "name" .name -}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "eks.labels" $scopeDict | nindent 4 }}
+    {{- include "eks.selectorLabels" $scopeDict | nindent 4 }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .accessModes }}
+  accessModes:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+{{ end }}

@@ -4,7 +4,11 @@
 apiVersion: getambassador.io/v2
 kind:  Mapping
 metadata:
+  {{- if .fixedServiceName }}
+  name: {{ .service }}
+  {{- else }}
   name: {{ include "eks.fullname" $scopeDict }}
+  {{- end }}
   labels:
     {{- include "eks.labels" $scopeDict | nindent 4 }}
 spec:

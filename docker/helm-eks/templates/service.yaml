@@ -29,7 +29,19 @@ metadata:
     {{- end }}
   {{- end }}
 spec:
+  {{- if .type }}
   type: {{ .type }}
+  {{- else }}
+  clusterIP: None
+  {{- end }}
+  {{- if eq .type "LoadBalancer" }}
+    {{- if .loadBalancer.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- range .loadBalancer.loadBalancerSourceRanges }}
+    - {{ . }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
   ports:
     {{- range .ports }}
     - name: {{ .name }}

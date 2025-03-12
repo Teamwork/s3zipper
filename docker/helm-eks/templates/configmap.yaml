@@ -11,4 +11,4 @@ data:
   {{- range $index, $value := .content }}
   {{ $index }}: {{ $value | quote }}
   {{- end }}
-{{- end }}
+{{ end }}

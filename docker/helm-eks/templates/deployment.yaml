@@ -4,6 +4,9 @@
 {{- if .argoRollout }}
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
+{{- else if .statefulSet }}
+apiVersion: apps/v1
+kind: StatefulSet
 {{- else }}
 apiVersion: apps/v1
 kind: Deployment
@@ -29,6 +32,18 @@ spec:
   strategy:
     {{- toYaml .argoRollout.strategy | nindent 4 }}
   {{- end }}
+  {{- if .statefulSet }}
+  {{- if .statefulSet.podManagementPolicy }}
+  podManagementPolicy: {{ .statefulSet.podManagementPolicy }}
+  {{- end }}
+  {{- if .statefulSet.serviceName }}
+  serviceName: {{ .statefulSet.serviceName }}
+  {{- end }}
+  {{- if .statefulSet.updateStrategy }}
+  updateStrategy:
+    {{ toYaml .statefulSet.updateStrategy | nindent 4}}
+  {{- end }}
+  {{- end }}
   template:
     metadata:
       {{- with .annotations }}
@@ -53,8 +68,6 @@ spec:
       {{- if $.Values.serviceAccount.name }}
       serviceAccountName: {{ $.Values.serviceAccount.name }}
       {{- end }}
-      securityContext:
-        {{- toYaml .securityContext | nindent 8 }}
       containers:
         {{- range .containers }}
         - name: {{ .name }}
@@ -111,40 +124,57 @@ spec:
                 {{- end }}
             {{- end }}
           {{- end }}
-          {{- if .healthchecks.livenessProbe }}
+          {{- if .healthchecks }}
+          {{- with .healthchecks.livenessProbe }}
           livenessProbe:
-            {{- toYaml .healthchecks.livenessProbe | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if .healthchecks.readinessProbe }}
+          {{- with .healthchecks.readinessProbe }}
           readinessProbe:
-            {{- toYaml .healthchecks.readinessProbe | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if .healthchecks.startupProbe }}
+          {{- with .healthchecks.startupProbe }}
           startupProbe:
-            {{- toYaml .healthchecks.startupProbe | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if .resources }}
+          {{- end }}
+          {{- with .resources }}
           resources:
-            {{- toYaml .resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- with .volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .securityContext }}
           securityContext:
-            {{- toYaml .securityContext | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       {{- end }}
       {{- with .volumes }}
       volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .securityContext }}
+      securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with $.Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-
-      {{- if $.Values.nodePool }}
+      {{- if or
+        (and .affinity $.Values.nodePool)
+        .affinity
+        $.Values.nodePool
+      }}
       affinity:
+      {{- end }}
+      {{- if and .affinity .affinity.podAntiAffinity }}
+        podAntiAffinity:
+          {{- .affinity.podAntiAffinity | toYaml | nindent 12 }}
+      {{- end }}
+      {{- if $.Values.nodePool }}
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
