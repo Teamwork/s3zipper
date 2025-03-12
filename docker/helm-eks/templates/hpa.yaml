@@ -24,6 +24,15 @@ spec:
         target:
           type: Utilization
           averageUtilization: {{ .scaling.targetCPUPercentage }}
+    {{- else }}
+      {{- if .scaling.targetCpuAverageValue }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: AverageValue
+          averageValue: {{ .scaling.targetCpuAverageValue }}
+      {{- end }}
     {{- end }}
     {{- if .scaling.targetMemoryPercentage }}
     - type: Resource
@@ -32,6 +41,15 @@ spec:
         target:
           type: Utilization
           averageUtilization: {{ .scaling.targetMemoryPercentage }}
+    {{- else }}
+      {{- if .scaling.targetMemoryAverageValue }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: AverageValue
+          averageValue: {{ .scaling.targetMemoryAverageValue }}
+      {{- end }}
     {{- end }}
 {{- end }}
-{{- end }}
+{{ end }}

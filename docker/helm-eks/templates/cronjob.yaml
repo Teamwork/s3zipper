@@ -45,8 +45,15 @@ spec:
             {{- with .labels }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- with .podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         spec:
           restartPolicy: {{ .policies.restart }}
+          {{- if $.Values.serviceAccount.name }}
+          serviceAccountName: {{ $.Values.serviceAccount.name }}
+          {{- end }}
           {{- if $.Values.nodePool }}
           affinity:
             nodeAffinity:
@@ -63,13 +70,27 @@ spec:
               operator: Equal
               value: {{ $.Values.nodePool }}
           {{- end }}
+
+          {{- if .topologySpreadConstraints }}
+          topologySpreadConstraints:
+            - maxSkew: {{ .topologySpreadConstraints.maxSkew }}
+              topologyKey: {{ .topologySpreadConstraints.topologyKey }}
+              whenUnsatisfiable: {{ .topologySpreadConstraints.whenUnsatisfiable }}
+              labelSelector:
+                matchLabels:
+                  {{- include "eks.selectorLabels" $scopeDict | nindent 18 }}
+          {{- end }}
+
           {{- range .containers }}
           containers:
             - name: {{ .name }}
               image: "{{ .image.repository }}:{{ .image.tag | default $.Chart.AppVersion }}"
               imagePullPolicy: {{ .image.pullPolicy | default "IfNotPresent" }}
-              {{- if .command }}
-              command: {{ .command }}
+              {{- with .command }}
+              command:
+                {{- range . }}
+                - {{ . | quote }}
+                {{- end }}
               {{- end }}
               {{- if .args }}
               args: {{ .args }}

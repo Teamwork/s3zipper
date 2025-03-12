@@ -18,6 +18,9 @@ metadata:
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/certificate-arn: {{ .certificateArn }}
     alb.ingress.kubernetes.io/listen-ports: {{ .listenPorts | squote }}
+    {{- if .timeout }}
+    alb.ingress.kubernetes.io/load-balancer-attributes: "idle_timeout.timeout_seconds={{ .timeout }}"
+    {{- end }}
     {{- if .internal }}
     alb.ingress.kubernetes.io/scheme: internal
     {{- else }}
@@ -39,8 +42,13 @@ metadata:
     alb.ingress.kubernetes.io/group.order: "1000"
     {{- $serviceScopeDict := mergeOverwrite $scopeDict (dict "name" $path.service )}}
     {{- $hash := sha256sum (printf "%s-%s-%s" $path.service $i $j) | trunc 16 }}
+    {{- if $path.fixedName }}
+    alb.ingress.kubernetes.io/actions.{{ printf "s%s" $hash }}: >
+      {"type":"forward","forwardConfig":{"targetGroups":[{"serviceName":"{{ $path.service }}","servicePort":"{{ $path.port }}"}]}}
+    {{- else }}
     alb.ingress.kubernetes.io/actions.{{ printf "s%s" $hash }}: >
       {"type":"forward","forwardConfig":{"targetGroups":[{"serviceName":"{{ include "eks.fullname" $serviceScopeDict }}","servicePort":"{{ $path.port }}"}]}}
+    {{- end }}
     alb.ingress.kubernetes.io/conditions.{{ printf "s%s" $hash }}: >
       [{"field":"http-header","httpHeaderConfig":{"httpHeaderName": "X-Alb-Target", "values":["{{ $path.header | default $path.service }}"]}}]
     {{- end }}

@@ -12,10 +12,24 @@ deployments:
       autoscaler: false
       targetCPUPercentage: 80 # Only used with autoscaling enabled
       targetMemoryPercentage: 80 # Only used with autoscaling enabled
+      #targetCpuAverageValue: 200m
+      #targetMemoryAverageValue: 1Gi
 
     rsLimit: 5
     imagePullSecrets: []
     # - name: dockerconfig-secret-name
+    #affinity:
+    #  podAntiAffinity:
+    #    preferredDuringSchedulingIgnoredDuringExecution:
+    #      - podAffinityTerm:
+    #          labelSelector:
+    #            matchExpressions:
+    #              - key: app
+    #                operator: In
+    #                values:
+    #                  - projectsessyncer
+    #          topologyKey: kubernetes.io/hostname
+    #        weight: 100
 
     annotations: {}
     labels: {}
@@ -107,6 +121,8 @@ services:
     loadBalancer: {} # Mandatory configuration when type is LoadBalancer
     # externalDNS: ""
     # internal: true
+    # loadBalancerSourceRanges:
+    #   - 257.257.257.257/32
 
     # Don't include lb scheme or external DNS annotations here, they are inferred from the values set above.
     annotations: {}
@@ -161,7 +177,15 @@ cronJobs:
       concurrency: Forbid
       restart: Never
 
+  # Optional config for topology spread to ensure pods are distributed across AWS availability zones
+  # and thus nodes are also spread across AZ (and subnets)
+  # topologySpreadConstraints:
+  #   maxSkew: 1
+  #   topologyKey: "topology.kubernetes.io/zone"
+  #   whenUnsatisfiable: ScheduleAnyway
+
     annotations: {}
+    podAnnotations: {}
     labels: {}
 
     containers:
@@ -220,3 +244,12 @@ ambassadorMappings: []
   #   rewrite: / # Path rewriting
   #   timeout_ms: 10000
   #   routingCookie: # Cookie for routing
+
+
+persistentVolumeClaims: []
+  # - name: example-pvc
+  #   accessModes:
+  #     - ReadWriteOnce
+  #   resources:
+  #     requests:
+  #       storage: 8Gi
