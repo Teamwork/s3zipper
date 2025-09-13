@@ -65,9 +65,8 @@ git-push: chart-update
 # Install dependencies
 #
 install-yq:
-	sudo add-apt-repository ppa:rmescandon/yq -y
-	sudo apt update
-	sudo apt install yq -y
+	sudo wget https://github.com/mikefarah/yq/releases/download/v4.16.2/yq_linux_amd64 -O /usr/bin/yq
+	sudo chmod +x /usr/bin/yq
 
 install-docker:
 	curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
