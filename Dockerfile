@@ -1,4 +1,4 @@
-FROM golang:1.15.2-alpine3.12 AS build
+FROM golang:1.21-alpine AS build
 
 WORKDIR /go/src/s3zipper
 COPY . .
