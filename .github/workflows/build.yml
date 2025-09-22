@@ -33,6 +33,7 @@ jobs:
           make -f Makefile git-prep git-push GH_TOKEN=${{ secrets.GH_ADMIN_TOKEN }} BRANCH=${{ github.ref_name }}
       
       - name: Trigger staging gitops workflow
+        if: github.ref == 'refs/heads/staging'
         run: |
           version="${{ env.version }}"
           curl -L \
@@ -45,6 +46,7 @@ jobs:
           echo "🎉 Updated staging gitops projects/projects-s3zipper to $version" >> $GITHUB_STEP_SUMMARY
       
       - name: Trigger US gitops workflow
+        if: github.ref == 'refs/heads/master'
         run: |
           version="${{ env.version }}"
           curl -L \
@@ -57,6 +59,7 @@ jobs:
           echo "🎉 Updated US gitops projects/projects-s3zipper to $version" >> $GITHUB_STEP_SUMMARY
       
       - name: Trigger EU gitops workflow
+        if: github.ref == 'refs/heads/master'
         run: |
           version="${{ env.version }}"
           curl -L \
