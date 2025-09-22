@@ -17,6 +17,3 @@ bin/
 .DS_Store
 .vscode/
 .idea/
-
-go.mod
-go.sum
