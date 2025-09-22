@@ -1,3 +1,22 @@
 conf.json
 s3zipper.exe
+s3zipper
 s3zipper.log
+# Go build artifacts
+bin/
+*.exe
+*.test
+*.out
+
+# Go cache
+/pkg/
+/vendor/
+
+# IDE and system files
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+go.mod
+go.sum
