@@ -6,14 +6,14 @@ ECR_IMAGE_REPO  = $(ECR_ACCOUNT).dkr.ecr.$(ECR_REGION).amazonaws.com/teamwork/$(
 ECR_CACHE_TAG   = $(ECR_IMAGE_REPO):cache-$(BRANCH)
 ECR_TAG         = $(ECR_IMAGE_REPO):$(VERSION)
 
-.PHONY: default install build push chart-update git-prep git-push install-docker install-buildx install-yq
+.PHONY: default install build push chart-update git-prep git-push install-docker install-yq
 
 #
 # Global targets
 #
 default: build
 
-install: install-docker install-buildx install-yq
+install: install-docker install-yq
 
 #
 # Docker image building and pushing
@@ -73,9 +73,3 @@ install-docker:
 	sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(shell lsb_release -cs) stable"
 	sudo apt-get update
 	sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
-
-install-buildx:
-	mkdir -p ~/.docker/cli-plugins
-	curl -L https://github.com/docker/buildx/releases/download/v0.3.1/buildx-v0.3.1.linux-amd64 -o ~/.docker/cli-plugins/docker-buildx
-	chmod 755 ~/.docker/cli-plugins/docker-buildx
-	docker buildx create --name container --use
