@@ -51,7 +51,7 @@ func main() {
 		return
 	}
 
-	configFile, err := os.Open("conf.json")
+	configFile, err := os.Open("/go/src/s3zipper/conf.json")
 	if err != nil {
 		panic("Error opening conf.json: " + err.Error())
 	}
