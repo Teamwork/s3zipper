@@ -12,26 +12,26 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
+	"context"
 	"net/http"
 
-	"github.com/AdRoll/goamz/aws"
-	"github.com/AdRoll/goamz/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	cfg "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	redigo "github.com/garyburd/redigo/redis"
 )
 
 type Configuration struct {
-	AccessKey          string
-	SecretKey          string
 	Bucket             string
 	Region             string
 	RedisServerAndPort string
 	Port               int
 }
 
-var config = Configuration{}
-var aws_bucket *s3.Bucket
+var configData = Configuration{}
 var redisPool *redigo.Pool
+var awsS3Client *s3.Client
 
 type RedisFile struct {
 	FileName string
@@ -51,19 +51,29 @@ func main() {
 		return
 	}
 
-	configFile, _ := os.Open("conf.json")
-	decoder := json.NewDecoder(configFile)
-	err := decoder.Decode(&config)
+	configFile, err := os.Open("/go/src/s3zipper/conf.json")
 	if err != nil {
-		panic("Error reading conf")
+		panic("Error opening conf.json: " + err.Error())
 	}
+	fmt.Printf("Opened configuration file 'conf.json'\n")
+
+	decoder := json.NewDecoder(configFile)
+	err = decoder.Decode(&configData)
+	if err != nil {
+		panic("Error reading conf: " + err.Error())
+	}
+	fmt.Printf("Loaded config: Bucket=%s, Region=%s, Redis=%s, Port=%d\n",
+		configData.Bucket, configData.Region, configData.RedisServerAndPort, configData.Port)
 
 	initAwsBucket()
 	InitRedis()
 
-	fmt.Println("Running on port", config.Port)
+	fmt.Printf("Starting HTTP server on port %d\n", configData.Port)
 	http.HandleFunc("/", handler)
-	http.ListenAndServe(":"+strconv.Itoa(config.Port), nil)
+	err = http.ListenAndServe(":"+strconv.Itoa(configData.Port), nil)
+	if err != nil {
+		fmt.Printf("HTTP server failed: %s\n", err.Error())
+	}
 }
 
 func test() {
@@ -76,9 +86,11 @@ func test() {
 	err = json.Unmarshal(resultByte, &files)
 	if err != nil {
 		err = errors.New("Error decoding json: " + jsonData)
+		fmt.Printf("%s\n", err.Error())
 	}
 
 	parseFileDates(files)
+	fmt.Printf("Test data parsed with %d files\n", len(files))
 }
 
 func parseFileDates(files []*RedisFile) {
@@ -86,7 +98,7 @@ func parseFileDates(files []*RedisFile) {
 	for _, file := range files {
 		t, err := time.Parse(layout, file.Modified)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Printf("Error parsing date '%s' for file %s: %s\n", file.Modified, file.FileName, err.Error())
 			continue
 		}
 		file.ModifiedTime = t
@@ -94,13 +106,13 @@ func parseFileDates(files []*RedisFile) {
 }
 
 func initAwsBucket() {
-	expiration := time.Now().Add(time.Hour * 1)
-	auth, err := aws.GetAuth(config.AccessKey, config.SecretKey, "", expiration) //"" = token which isn't needed
+	awsCfg, err := cfg.LoadDefaultConfig(context.TODO(), cfg.WithRegion(configData.Region))
 	if err != nil {
-		panic(err)
+		log.Fatalf("unable to load SDK config, %v", err)
 	}
 
-	aws_bucket = s3.New(auth, aws.GetRegion(config.Region)).Bucket(config.Bucket)
+	awsS3Client = s3.NewFromConfig(awsCfg)
+	fmt.Printf("AWS S3 client initialized\n")
 }
 
 func InitRedis() {
@@ -108,7 +120,8 @@ func InitRedis() {
 		MaxIdle:     10,
 		IdleTimeout: 1 * time.Second,
 		Dial: func() (redigo.Conn, error) {
-			return redigo.Dial("tcp", config.RedisServerAndPort)
+			fmt.Printf("Connecting to Redis at %s\n", configData.RedisServerAndPort)
+			return redigo.Dial("tcp", configData.RedisServerAndPort)
 		},
 		TestOnBorrow: func(c redigo.Conn, t time.Time) (err error) {
 			if time.Since(t) < time.Minute {
@@ -121,16 +134,19 @@ func InitRedis() {
 			return
 		},
 	}
+	fmt.Printf("Redis connection pool initialized\n")
 }
 
 // Remove all other unrecognised characters apart from
 var makeSafeFileName = regexp.MustCompile(`[#<>:"/\|?*\\]`)
 
 func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
+	fmt.Printf("Fetching files from Redis with ref: %s\n", ref)
 
 	// Testing - enable to test. Remove later.
 	if 1 == 0 && ref == "test" {
-		files = append(files, &RedisFile{FileName: "test.zip", Folder: "", S3Path: "test/test.zip"}) // Edit and dplicate line to test
+		files = append(files, &RedisFile{FileName: "test.zip", Folder: "", S3Path: "test/test.zip"}) // Edit and duplicate line to test
+		fmt.Printf("Returning test file data\n")
 		return
 	}
 
@@ -141,6 +157,7 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 	result, err := redis.Do("GET", "zip:"+ref)
 	if err != nil || result == nil {
 		err = errors.New("Access Denied (sorry your link has timed out)")
+		fmt.Printf("Redis GET failed or returned nil for ref: %s\n", ref)
 		return
 	}
 
@@ -149,6 +166,7 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 	var ok bool
 	if resultByte, ok = result.([]byte); !ok {
 		err = errors.New("Error converting data stream to bytes")
+		fmt.Printf("Type assertion to []byte failed for Redis data\n")
 		return
 	}
 
@@ -156,9 +174,12 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 	err = json.Unmarshal(resultByte, &files)
 	if err != nil {
 		err = errors.New("Error decoding json: " + string(resultByte))
+		fmt.Printf("JSON Unmarshal error: %s\n", err.Error())
+		return
 	}
+	fmt.Printf("Retrieved %d files from Redis\n", len(files))
 
-	// Convert mofified date strings to time objects
+	// Convert modified date strings to time objects
 	parseFileDates(files)
 
 	return
@@ -166,10 +187,12 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	fmt.Printf("Handling request: %s %s\n", r.Method, r.RequestURI)
 
 	health, ok := r.URL.Query()["health"]
 	if len(health) > 0 {
 		fmt.Fprintf(w, "OK")
+		fmt.Printf("Health check responded OK\n")
 		return
 	}
 
@@ -177,9 +200,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	refs, ok := r.URL.Query()["ref"]
 	if !ok || len(refs) < 1 {
 		http.Error(w, "S3 File Zipper. Pass ?ref= to use.", 500)
+		fmt.Printf("Missing ref parameter\n")
 		return
 	}
 	ref := refs[0]
+	fmt.Printf("Request ref: %s\n", ref)
 
 	// Get "downloadas" URL params
 	downloadas, ok := r.URL.Query()["downloadas"]
@@ -191,11 +216,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		downloadas = append(downloadas, "download.zip")
 	}
+	fmt.Printf("Download filename set to: %s\n", downloadas[0])
 
 	files, err := getFilesFromRedis(ref)
 	if err != nil {
 		http.Error(w, err.Error(), 403)
-		log.Printf("%s\t%s\t%s", r.Method, r.RequestURI, err.Error())
+		fmt.Printf("Error fetching files from Redis: %s\n", err.Error())
 		return
 	}
 
@@ -203,48 +229,57 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Disposition", "attachment; filename=\""+downloadas[0]+"\"")
 	w.Header().Add("Content-Type", "application/zip")
 
-	// Loop over files, add them to the
+	// Loop over files, add them to the zip archive
 	zipWriter := zip.NewWriter(w)
-	for _, file := range files {
+	defer func() {
+		err := zipWriter.Close()
+		if err != nil {
+			fmt.Printf("Error closing zip writer: %s\n", err.Error())
+		} else {
+			fmt.Printf("Zip writer closed successfully\n")
+		}
+	}()
 
+	for _, file := range files {
 		if file.S3Path == "" {
-			log.Printf("Missing path for file: %v", file)
+			fmt.Printf("Skipping file with empty S3Path: %+v\n", file)
 			continue
 		}
 
-		// Build safe file file name
+		// Build safe file name
 		safeFileName := makeSafeFileName.ReplaceAllString(file.FileName, "")
 		if safeFileName == "" { // Unlikely but just in case
 			safeFileName = "file"
 		}
 
 		// Read file from S3, log any errors
-		rdr, err := aws_bucket.GetReader(file.S3Path)
+		input := &s3.GetObjectInput{
+			Bucket: aws.String(configData.Bucket),
+			Key:    aws.String(file.S3Path),
+		}
+
+		fmt.Printf("Downloading file from S3: Bucket=%s, Key=%s\n", configData.Bucket, file.S3Path)
+		resp, err := awsS3Client.GetObject(context.TODO(), input)
 		if err != nil {
-			switch t := err.(type) {
-			case *s3.Error:
-				if t.StatusCode == 404 {
-					log.Printf("File not found. %s", file.S3Path)
-				}
-			default:
-				log.Printf("Error downloading \"%s\" - %s", file.S3Path, err.Error())
+			var noKey *types.NoSuchKey
+			if errors.As(err, &noKey) {
+				fmt.Printf("File not found in S3: %s\n", file.S3Path)
+			} else {
+				fmt.Printf("Error downloading file \"%s\": %s\n", file.S3Path, err.Error())
 			}
 			continue
 		}
 
-		// Build a good path for the file within the zip
+		// Build path for file within the zip
 		zipPath := ""
-		// Prefix project Id and name, if any (remove if you don't need)
 		if file.ProjectId > 0 {
 			zipPath += strconv.FormatInt(file.ProjectId, 10) + "."
-			// Build Safe Project Name
 			file.ProjectName = makeSafeFileName.ReplaceAllString(file.ProjectName, "")
-			if file.ProjectName == "" { // Unlikely but just in case
+			if file.ProjectName == "" {
 				file.ProjectName = "Project"
 			}
 			zipPath += file.ProjectName + "/"
 		}
-		// Prefix folder name, if any
 		if file.Folder != "" {
 			zipPath += file.Folder
 			if !strings.HasSuffix(zipPath, "/") {
@@ -253,8 +288,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 		zipPath += safeFileName
 
-		// We have to set a special flag so zip files recognize utf file names
-		// See http://stackoverflow.com/questions/30026083/creating-a-zip-archive-with-unicode-filenames-using-gos-archive-zip
 		h := &zip.FileHeader{
 			Name:   zipPath,
 			Method: zip.Deflate,
@@ -265,13 +298,21 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			h.SetModTime(file.ModifiedTime)
 		}
 
-		f, _ := zipWriter.CreateHeader(h)
+		f, err := zipWriter.CreateHeader(h)
+		if err != nil {
+			fmt.Printf("Error creating zip header for %s: %s\n", zipPath, err.Error())
+			continue
+		}
 
-		io.Copy(f, rdr)
-		rdr.Close()
+		fmt.Printf("Adding file to zip: %s\n", zipPath)
+
+		_, err = io.Copy(f, resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			fmt.Printf("Error writing file %s to zip: %s\n", zipPath, err.Error())
+			continue
+		}
 	}
 
-	zipWriter.Close()
-
-	log.Printf("%s\t%s\t%s", r.Method, r.RequestURI, time.Since(start))
+	fmt.Printf("Request processed in %s\n", time.Since(start))
 }

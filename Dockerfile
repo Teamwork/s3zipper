@@ -1,10 +1,14 @@
-FROM golang:1.15.2-alpine3.12 AS build
+FROM golang:1.23.4-alpine
 
-WORKDIR /go/src/s3zipper
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
 
-RUN apk add git
-RUN go get -d -v ./...
-RUN go build -v ./...
+RUN apk add --no-cache git
 
-CMD ["/go/src/s3zipper/s3zipper"]
+RUN go build -v -o s3zipper
+
+CMD ["./s3zipper"]
