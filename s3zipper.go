@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -14,12 +13,12 @@ import (
 	"time"
 	"context"
 	"net/http"
-
+	"log/slog"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	cfg "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	redigo "github.com/garyburd/redigo/redis"
+	redigo "github.com/gomodule/redigo/redis"
 )
 
 type Configuration struct {
@@ -45,34 +44,63 @@ type RedisFile struct {
 	ModifiedTime time.Time
 }
 
+var logger *slog.Logger
+
+func initLogger() {
+	logLevel := os.Getenv("LOG_LEVEL")
+	var level slog.Level
+	switch strings.ToLower(logLevel) {
+	case "debug":
+		level = slog.LevelDebug
+	default:
+		level = slog.LevelInfo
+	}
+
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: level,
+	})
+	logger = slog.New(handler)
+	slog.SetDefault(logger)
+}
+
+
 func main() {
 	if 1 == 0 {
 		test()
 		return
 	}
+	initLogger()
 
-	configFile, err := os.Open("/go/src/s3zipper/conf.json")
+	configFilePath := os.Getenv("CONFIG_FILE")
+	if configFilePath == "" {
+		configFilePath = "/go/src/s3zipper/conf.json"
+	}
+	configFile, err := os.Open(configFilePath)
+
 	if err != nil {
 		panic("Error opening conf.json: " + err.Error())
 	}
-	fmt.Printf("Opened configuration file 'conf.json'\n")
+	slog.Info("Opened configuration file", "path", configFilePath)
 
 	decoder := json.NewDecoder(configFile)
 	err = decoder.Decode(&configData)
 	if err != nil {
 		panic("Error reading conf: " + err.Error())
 	}
-	fmt.Printf("Loaded config: Bucket=%s, Region=%s, Redis=%s, Port=%d\n",
-		configData.Bucket, configData.Region, configData.RedisServerAndPort, configData.Port)
-
+	slog.Info("Loaded configuration",
+		"bucket", configData.Bucket,
+		"region", configData.Region,
+		"redis", configData.RedisServerAndPort,
+		"port", configData.Port,
+	)
 	initAwsBucket()
 	InitRedis()
 
-	fmt.Printf("Starting HTTP server on port %d\n", configData.Port)
+	slog.Info("Starting HTTP server", "port", configData.Port)
 	http.HandleFunc("/", handler)
 	err = http.ListenAndServe(":"+strconv.Itoa(configData.Port), nil)
-	if err != nil {
-		fmt.Printf("HTTP server failed: %s\n", err.Error())
+	if err != nil && err != http.ErrServerClosed {
+		log.Fatalf("HTTP server error: %s", err)
 	}
 }
 
@@ -86,11 +114,11 @@ func test() {
 	err = json.Unmarshal(resultByte, &files)
 	if err != nil {
 		err = errors.New("Error decoding json: " + jsonData)
-		fmt.Printf("%s\n", err.Error())
+		slog.Error(err.Error())
 	}
 
 	parseFileDates(files)
-	fmt.Printf("Test data parsed with %d files\n", len(files))
+	slog.Info("Test data parsed", "file_count", len(files))
 }
 
 func parseFileDates(files []*RedisFile) {
@@ -98,7 +126,7 @@ func parseFileDates(files []*RedisFile) {
 	for _, file := range files {
 		t, err := time.Parse(layout, file.Modified)
 		if err != nil {
-			fmt.Printf("Error parsing date '%s' for file %s: %s\n", file.Modified, file.FileName, err.Error())
+			slog.Warn("Error parsing date", "date", file.Modified, "file", file.FileName, "error", err)
 			continue
 		}
 		file.ModifiedTime = t
@@ -112,7 +140,7 @@ func initAwsBucket() {
 	}
 
 	awsS3Client = s3.NewFromConfig(awsCfg)
-	fmt.Printf("AWS S3 client initialized\n")
+	slog.Info("AWS S3 client initialized")
 }
 
 func InitRedis() {
@@ -120,7 +148,7 @@ func InitRedis() {
 		MaxIdle:     10,
 		IdleTimeout: 1 * time.Second,
 		Dial: func() (redigo.Conn, error) {
-			fmt.Printf("Connecting to Redis at %s\n", configData.RedisServerAndPort)
+			slog.Info("Connecting to Redis", "addr", configData.RedisServerAndPort)
 			return redigo.Dial("tcp", configData.RedisServerAndPort)
 		},
 		TestOnBorrow: func(c redigo.Conn, t time.Time) (err error) {
@@ -129,24 +157,23 @@ func InitRedis() {
 			}
 			_, err = c.Do("PING")
 			if err != nil {
-				panic("Error connecting to redis")
+				slog.Error("Error connecting to Redis", "error", err)
 			}
 			return
 		},
 	}
-	fmt.Printf("Redis connection pool initialized\n")
+	slog.Info("Redis connection pool initialized")
 }
 
 // Remove all other unrecognised characters apart from
 var makeSafeFileName = regexp.MustCompile(`[#<>:"/\|?*\\]`)
 
 func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
-	fmt.Printf("Fetching files from Redis with ref: %s\n", ref)
+	slog.Debug("Fetching files from Redis", "ref", ref)
 
 	// Testing - enable to test. Remove later.
 	if 1 == 0 && ref == "test" {
 		files = append(files, &RedisFile{FileName: "test.zip", Folder: "", S3Path: "test/test.zip"}) // Edit and duplicate line to test
-		fmt.Printf("Returning test file data\n")
 		return
 	}
 
@@ -157,7 +184,7 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 	result, err := redis.Do("GET", "zip:"+ref)
 	if err != nil || result == nil {
 		err = errors.New("Access Denied (sorry your link has timed out)")
-		fmt.Printf("Redis GET failed or returned nil for ref: %s\n", ref)
+		slog.Warn("Redis GET failed or returned nil", "ref", ref)
 		return
 	}
 
@@ -166,7 +193,7 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 	var ok bool
 	if resultByte, ok = result.([]byte); !ok {
 		err = errors.New("Error converting data stream to bytes")
-		fmt.Printf("Type assertion to []byte failed for Redis data\n")
+		slog.Error("Type assertion to []byte failed for Redis data")
 		return
 	}
 
@@ -174,10 +201,10 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 	err = json.Unmarshal(resultByte, &files)
 	if err != nil {
 		err = errors.New("Error decoding json: " + string(resultByte))
-		fmt.Printf("JSON Unmarshal error: %s\n", err.Error())
+		slog.Error("JSON Unmarshal error", "error", err)
 		return
 	}
-	fmt.Printf("Retrieved %d files from Redis\n", len(files))
+	slog.Debug("Retrieved files from Redis", "count", len(files))
 
 	// Convert modified date strings to time objects
 	parseFileDates(files)
@@ -187,12 +214,12 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	fmt.Printf("Handling request: %s %s\n", r.Method, r.RequestURI)
+	slog.Info("Handling request", "method", r.Method, "uri", r.RequestURI)
 
 	health, ok := r.URL.Query()["health"]
 	if len(health) > 0 {
-		fmt.Fprintf(w, "OK")
-		fmt.Printf("Health check responded OK\n")
+		w.Write([]byte("OK"))
+		slog.Debug("Health check responded OK")
 		return
 	}
 
@@ -200,11 +227,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	refs, ok := r.URL.Query()["ref"]
 	if !ok || len(refs) < 1 {
 		http.Error(w, "S3 File Zipper. Pass ?ref= to use.", 500)
-		fmt.Printf("Missing ref parameter\n")
+		slog.Warn("Missing ref parameter")
 		return
 	}
 	ref := refs[0]
-	fmt.Printf("Request ref: %s\n", ref)
+	slog.Debug("Request ref", "ref", ref)
 
 	// Get "downloadas" URL params
 	downloadas, ok := r.URL.Query()["downloadas"]
@@ -216,12 +243,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		downloadas = append(downloadas, "download.zip")
 	}
-	fmt.Printf("Download filename set to: %s\n", downloadas[0])
+	slog.Debug("Download filename set", "filename", downloadas[0])
 
 	files, err := getFilesFromRedis(ref)
 	if err != nil {
 		http.Error(w, err.Error(), 403)
-		fmt.Printf("Error fetching files from Redis: %s\n", err.Error())
+		slog.Error("Error fetching files from Redis", "error", err)
 		return
 	}
 
@@ -234,15 +261,15 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		err := zipWriter.Close()
 		if err != nil {
-			fmt.Printf("Error closing zip writer: %s\n", err.Error())
+			slog.Error("Error closing zip writer", "error", err)
 		} else {
-			fmt.Printf("Zip writer closed successfully\n")
+			slog.Debug("Zip writer closed successfully")
 		}
 	}()
 
 	for _, file := range files {
 		if file.S3Path == "" {
-			fmt.Printf("Skipping file with empty S3Path: %+v\n", file)
+			slog.Warn("Skipping file with empty S3Path", "file", file)
 			continue
 		}
 
@@ -258,14 +285,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			Key:    aws.String(file.S3Path),
 		}
 
-		fmt.Printf("Downloading file from S3: Bucket=%s, Key=%s\n", configData.Bucket, file.S3Path)
+		slog.Debug("Downloading file from S3", "bucket", configData.Bucket, "key", file.S3Path)
 		resp, err := awsS3Client.GetObject(context.TODO(), input)
 		if err != nil {
 			var noKey *types.NoSuchKey
 			if errors.As(err, &noKey) {
-				fmt.Printf("File not found in S3: %s\n", file.S3Path)
+				slog.Warn("File not found in S3", "s3_path", file.S3Path)
 			} else {
-				fmt.Printf("Error downloading file \"%s\": %s\n", file.S3Path, err.Error())
+				slog.Error("Error downloading file", "s3_path", file.S3Path, "error", err)
 			}
 			continue
 		}
@@ -300,19 +327,19 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 		f, err := zipWriter.CreateHeader(h)
 		if err != nil {
-			fmt.Printf("Error creating zip header for %s: %s\n", zipPath, err.Error())
+			slog.Error("Error creating zip header", "zip_path", zipPath, "error", err)
 			continue
 		}
 
-		fmt.Printf("Adding file to zip: %s\n", zipPath)
+		slog.Debug("Adding file to zip", "zip_path", zipPath)
 
 		_, err = io.Copy(f, resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			fmt.Printf("Error writing file %s to zip: %s\n", zipPath, err.Error())
+			slog.Error("Error writing file to zip", "zip_path", zipPath, "error", err)
 			continue
 		}
 	}
 
-	fmt.Printf("Request processed in %s\n", time.Since(start))
+	slog.Debug("Request processed", "duration", time.Since(start))
 }

@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.39.1
 	github.com/aws/aws-sdk-go-v2/config v1.31.10
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.88.2
-	github.com/garyburd/redigo v1.6.4
+	github.com/gomodule/redigo v1.9.2
 )
 
 require (

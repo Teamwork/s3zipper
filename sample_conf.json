@@ -1,6 +1,0 @@
-{
-	"Bucket": "bucket",
-	"Region": "us-east-1",
-	"RedisServerAndPort": "127.0.0.1:6379",
-	"Port": 8000
-}
