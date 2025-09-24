@@ -214,7 +214,7 @@ func getFilesFromRedis(ref string) (files []*RedisFile, err error) {
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	slog.Info("Handling request", "method", r.Method, "uri", r.RequestURI)
+	slog.Debug("Handling request", "method", r.Method, "uri", r.RequestURI)
 
 	health, ok := r.URL.Query()["health"]
 	if len(health) > 0 {
