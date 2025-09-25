@@ -1,6 +1,6 @@
 module s3zipper
 
-go 1.23.4
+go 1.23.12
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.39.1
