@@ -216,9 +216,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	slog.Debug("Handling request", "method", r.Method, "uri", r.RequestURI)
 
-	health, ok := r.URL.Query()["health"]
-	if len(health) > 0 {
-		w.Write([]byte("OK"))
+	if r.URL.Query().Has("health") {
+		_, err := w.Write([]byte("OK"))
+		if err != nil {
+			slog.Error("Error writing health check response", "error", err)
+			return
+		}
+
 		slog.Debug("Health check responded OK")
 		return
 	}
@@ -247,7 +251,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	files, err := getFilesFromRedis(ref)
 	if err != nil {
-		http.Error(w, err.Error(), 403)
+		http.Error(w, err.Error(), http.StatusForbidden)
 		slog.Error("Error fetching files from Redis", "error", err)
 		return
 	}
@@ -296,7 +300,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			}
 			continue
 		}
-
 		defer resp.Body.Close()
 
 		// Build path for file within the zip
@@ -324,7 +327,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if file.Modified != "" {
-			h.SetModTime(file.ModifiedTime)
+			h.Modified = file.ModifiedTime
 		}
 
 		f, err := zipWriter.CreateHeader(h)
@@ -334,8 +337,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		slog.Debug("Adding file to zip", "zip_path", zipPath)
-
-		defer resp.Body.Close()
 
 		_, err = io.Copy(f, resp.Body)
 		if err != nil {
