@@ -296,6 +296,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			}
 			continue
 		}
+		defer resp.Body.Close()
 
 		// Build path for file within the zip
 		zipPath := ""
@@ -332,8 +333,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		slog.Debug("Adding file to zip", "zip_path", zipPath)
-
-		defer resp.Body.Close()
 
 		_, err = io.Copy(f, resp.Body)
 		if err != nil {
