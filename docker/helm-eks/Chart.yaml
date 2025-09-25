@@ -3,4 +3,4 @@ type: application
 name: s3zipper
 description: A Helm chart for Kubernetes
 version: 1.8.7
-appVersion: "0da10a08abeb4b309b9511f735653e4568825d48"
+appVersion: "b31c9f866da45efaa7e6e09223cc957260b66952"
