@@ -297,6 +297,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		defer resp.Body.Close()
+
 		// Build path for file within the zip
 		zipPath := ""
 		if file.ProjectId > 0 {
