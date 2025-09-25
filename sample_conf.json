@@ -1,4 +1,6 @@
 {
+	"AccessKey": "key",
+	"SecretKey": "key",
 	"Bucket": "bucket",
 	"Region": "us-east-1",
 	"RedisServerAndPort": "127.0.0.1:6379",
