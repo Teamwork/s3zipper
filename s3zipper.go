@@ -2,22 +2,23 @@ package main
 
 import (
 	"archive/zip"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"log"
+	"log/slog"
+	"net/http"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
-	"context"
-	"net/http"
-	"log/slog"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	cfg "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
@@ -62,7 +63,6 @@ func initLogger() {
 	logger = slog.New(handler)
 	slog.SetDefault(logger)
 }
-
 
 func main() {
 	if 1 == 0 {
@@ -333,8 +333,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 		slog.Debug("Adding file to zip", "zip_path", zipPath)
 
+		defer resp.Body.Close()
+
 		_, err = io.Copy(f, resp.Body)
-		resp.Body.Close()
 		if err != nil {
 			slog.Error("Error writing file to zip", "zip_path", zipPath, "error", err)
 			continue
