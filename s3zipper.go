@@ -17,6 +17,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	cfg "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	redigo "github.com/gomodule/redigo/redis"
@@ -27,6 +28,8 @@ type Configuration struct {
 	Region             string
 	RedisServerAndPort string
 	Port               int
+	AccessKey          *string
+	SecretKey          *string
 }
 
 var configData = Configuration{}
@@ -134,9 +137,31 @@ func parseFileDates(files []*RedisFile) {
 }
 
 func initAwsBucket() {
-	awsCfg, err := cfg.LoadDefaultConfig(context.TODO(), cfg.WithRegion(configData.Region))
+	var awsCfg aws.Config
+	var err error
+
+	if configData.AccessKey != nil && configData.SecretKey != nil {
+		slog.Info("Using static AWS credentials from conf.json")
+
+		creds := credentials.NewStaticCredentialsProvider(
+			*configData.AccessKey,
+			*configData.SecretKey,
+			"", // No session token; add if needed
+		)
+
+		awsCfg, err = cfg.LoadDefaultConfig(context.TODO(),
+			cfg.WithRegion(configData.Region),
+			cfg.WithCredentialsProvider(creds),
+		)
+	} else {
+		slog.Info("Using default AWS credential provider chain (e.g., IAM role, env vars)")
+		awsCfg, err = cfg.LoadDefaultConfig(context.TODO(),
+			cfg.WithRegion(configData.Region),
+		)
+	}
+
 	if err != nil {
-		log.Fatalf("unable to load SDK config, %v", err)
+		log.Fatalf("Unable to load AWS config: %v", err)
 	}
 
 	awsS3Client = s3.NewFromConfig(awsCfg)
