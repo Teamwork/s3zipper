@@ -45,8 +45,7 @@ push:
 # Helm chart updates
 #
 chart-update:
-	yq eval -i '.appVersion = "$(VERSION)"' docker/helm/Chart.yaml
-	yq eval -i '.appVersion = "$(VERSION)"' docker/helm-eks/Chart.yaml
+	echo "Skip"
 
 #
 # GitOps deployment will be triggered by a committed change to helm chart
@@ -58,8 +57,7 @@ git-prep:
 	git pull gh $(BRANCH) --ff-only
 
 git-push: chart-update
-	git commit -am "[ci skip] Updated helm chart to $(VERSION)"
-	git push gh HEAD:$(BRANCH)
+	echo "Skip"
 
 #
 # Install dependencies
